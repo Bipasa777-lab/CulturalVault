@@ -200,4 +200,4 @@ Follow these instructions to run the application locally on your computer.
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-© 2026 CulturalVault. Designed with 🧡 to safeguard world heritage.
+© 2026 CulturalVault. Designed with 🧡 to safeguard world heritage. 
