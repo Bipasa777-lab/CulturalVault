@@ -83,12 +83,30 @@ export default function CommunityDetailsPage() {
         const data =
           await res.json();
 
-        const dataArray = Array.isArray(data) ? data : [];
+        let dataArray = Array.isArray(data) ? data : [];
+
+        // Merge local user-submitted contributions
+        try {
+          const localStored = localStorage.getItem("my_submitted_contributions");
+          if (localStored) {
+            const localList = JSON.parse(localStored);
+            if (Array.isArray(localList)) {
+              localList.forEach((localItem: any) => {
+                const exists = dataArray.some((apiItem: any) => apiItem._id === localItem._id || apiItem.id === localItem._id);
+                if (!exists) {
+                  dataArray.push(localItem);
+                }
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to merge local contributions in details page:", e);
+        }
 
         const selected =
           dataArray.find(
             (contribution: any) =>
-              contribution._id ===
+              (contribution._id || contribution.id) ===
               params.id
           );
 

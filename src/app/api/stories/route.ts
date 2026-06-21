@@ -1,23 +1,39 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Story from "@/models/Story";
+import { MOCK_STORIES } from "@/lib/mockData";
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`Database query timed out after ${timeoutMs}ms. Returning fallback mock data.`);
+      resolve(fallbackValue);
+    }, timeoutMs);
+  });
+
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise
+  ]);
+}
 
 export async function GET() {
   try {
-    await connectDB();
+    const fetchStoriesPromise = (async () => {
+      await connectDB();
+      return await Story.find();
+    })();
 
-    const stories = await Story.find();
+    const stories = await withTimeout(fetchStoriesPromise, 1500, MOCK_STORIES);
 
     return NextResponse.json(stories);
   } catch (error: any) {
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        error: error.message,
-      },
-      { status: 500 }
-    );
+    console.error("Failed to fetch stories from database, using fallback mock data:", error);
+    return NextResponse.json(MOCK_STORIES);
   }
 }
 

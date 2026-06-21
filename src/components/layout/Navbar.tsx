@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -12,6 +12,15 @@ import { useLanguage } from "@/context/LanguageContext";
 import { translations } from "@/lib/translations";
 import { useSidebar } from "@/context/SidebarContext";
 
+const LANGUAGES = [
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "bn", label: "বাংলা", flag: "🇧🇩" },
+  { code: "hi", label: "हिन्दी", flag: "🇮🇳" },
+  { code: "es", label: "Español", flag: "🇪🇸" },
+  { code: "fr", label: "Français", flag: "🇫🇷" },
+  { code: "ar", label: "العربية", flag: "🇸🇦" },
+];
+
 export function Navbar() {
   const { theme, setTheme } = useTheme();
   const { count } = useBookmarks();
@@ -21,8 +30,23 @@ export function Navbar() {
   const [isAuth, setIsAuth] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const t = translations[language];
+
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const langRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (langRef.current && !langRef.current.contains(event.target as Node)) {
+        setLangDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const activeLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
 
   const { collapsed, setCollapsed, mobileOpen: sidebarMobileOpen, setMobileOpen: setSidebarMobileOpen } = useSidebar();
 
@@ -122,6 +146,57 @@ export function Navbar() {
                   </span>
                 )}
               </Link>
+            )}
+
+            {mounted && isAuth && (
+              <div className="relative" ref={langRef}>
+                <button
+                  onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+                  className="flex items-center gap-1.5 p-2 rounded-lg hover:bg-secondary transition-colors text-foreground"
+                  aria-label="Language Selector"
+                >
+                  <Globe size={18} />
+                  <span className="text-xs font-semibold uppercase">{activeLang.code}</span>
+                </button>
+
+                <AnimatePresence>
+                  {langDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-48 rounded-xl border border-border bg-popover text-popover-foreground shadow-lg p-1.5 z-50 overflow-hidden"
+                    >
+                      <div className="flex flex-col gap-0.5">
+                        {LANGUAGES.map((lang) => (
+                          <button
+                            key={lang.code}
+                            onClick={() => {
+                              setLanguage(lang.code as any);
+                              setLangDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+                              language === lang.code
+                                ? "bg-primary text-primary-foreground font-medium"
+                                : "hover:bg-secondary text-foreground"
+                            )}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span>{lang.flag}</span>
+                              <span>{lang.label}</span>
+                            </span>
+                            {language === lang.code && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
             
             {mounted && isAuth ? (

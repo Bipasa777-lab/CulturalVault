@@ -10,35 +10,72 @@ export default function UploadCenterPage() {
   const [regionCount, setRegionCount] = useState(0);
 
   useEffect(() => {
-    const stories = JSON.parse(
-      localStorage.getItem("stories") || "[]"
-    );
+    async function loadStats() {
+      // 1. Load from local cache first if available
+      try {
+        const cached = localStorage.getItem("cached_stories");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          const storiesArray = Array.isArray(parsed) ? parsed : [];
+          setStoryCount(storiesArray.length);
+          const languages = Array.from(new Set(storiesArray.map((story: any) => story.language).filter(Boolean)));
+          const regions = Array.from(new Set(storiesArray.map((story: any) => story.region).filter(Boolean)));
+          setLanguageCount(languages.length);
+          setRegionCount(regions.length);
+        }
+      } catch (e) {
+        console.error("Failed to load cached stories stats:", e);
+      }
 
-    const articles = JSON.parse(
-      localStorage.getItem("articles") || "[]"
-    );
+      // 2. Fetch fresh stats in background
+      try {
+        const res = await fetch("/api/stories");
+        if (res.ok) {
+          const stories = await res.json();
+          const storiesArray = Array.isArray(stories) ? stories : [];
+          setStoryCount(storiesArray.length);
+          
+          const languages = Array.from(
+            new Set(
+              storiesArray
+                .map((story: any) => story.language)
+                .filter(Boolean)
+            )
+          );
 
-    setStoryCount(stories.length);
-    setArticleCount(articles.length);
+          const regions = Array.from(
+            new Set(
+              storiesArray
+                .map((story: any) => story.region)
+                .filter(Boolean)
+            )
+          );
 
-    const languages = Array.from(
-      new Set(
-        stories
-          .map((story: any) => story.language)
-          .filter(Boolean)
-      )
-    );
+          setLanguageCount(languages.length);
+          setRegionCount(regions.length);
+          if (storiesArray.length > 0) {
+            try {
+              localStorage.setItem("cached_stories", JSON.stringify(storiesArray));
+            } catch (e) {
+              console.warn("Storage quota exceeded, unable to cache stories:", e);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Error loading stories stats in contribution center, using local cache fallback:", err);
+      }
 
-    const regions = Array.from(
-      new Set(
-        stories
-          .map((story: any) => story.region)
-          .filter(Boolean)
-      )
-    );
-
-    setLanguageCount(languages.length);
-    setRegionCount(regions.length);
+      try {
+        const articles = JSON.parse(
+          localStorage.getItem("articles") || "[]"
+        );
+        setArticleCount(articles.length);
+      } catch (err) {
+        console.error("Error loading articles count:", err);
+      }
+    }
+    
+    loadStats();
   }, []);
 
   return (

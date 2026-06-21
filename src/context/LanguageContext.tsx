@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 
-export type Language = "en" | "hi" | "bn" | "ta" | "te";
+export type Language = "en" | "hi" | "bn" | "ta" | "te" | "es" | "fr" | "ar";
 
 type ContextType = {
   language: Language;
@@ -34,15 +34,24 @@ export function LanguageProvider({
     if (
       savedLanguage === "en" ||
       savedLanguage === "hi" ||
-      savedLanguage === "bn"
+      savedLanguage === "bn" ||
+      savedLanguage === "ta" ||
+      savedLanguage === "te" ||
+      savedLanguage === "es" ||
+      savedLanguage === "fr" ||
+      savedLanguage === "ar"
     ) {
-      setLanguage(savedLanguage);
+      setLanguage(savedLanguage as Language);
     }
   }, []);
 
-  // Save language whenever it changes
+  // Save language whenever it changes and update HTML attributes (RTL / lang)
   useEffect(() => {
     localStorage.setItem("language", language);
+    if (typeof document !== "undefined") {
+      document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+      document.documentElement.lang = language;
+    }
   }, [language]);
 
   return (

@@ -11,36 +11,109 @@ export default function StoryList({
   const [stories, setStories] = useState<any[]>([]);
 
   const loadStories = async () => {
-  try {
-    const res = await fetch("/api/stories");
+    let localList: any[] = [];
+    try {
+      const localStored = localStorage.getItem("my_uploaded_stories");
+      if (localStored) {
+        localList = JSON.parse(localStored);
+        if (!Array.isArray(localList)) localList = [];
+      }
+    } catch (e) {
+      console.warn("Failed to parse local stories:", e);
+    }
 
-    const data = await res.json();
+    try {
+      const res = await fetch("/api/stories");
+      const data = await res.json();
+      const storiesList = Array.isArray(data) ? data : [];
 
-    setStories(Array.isArray(data) ? data : []);
-  } catch (error) {
-    console.error(error);
-    setStories([]);
-  }
-};
+      // Merge server stories and local stories (prefer server/db version if duplicate)
+      const merged = [...storiesList];
+      localList.forEach((localItem: any) => {
+        const exists = merged.some(
+          (apiItem: any) => apiItem._id === localItem._id || apiItem.id === localItem._id
+        );
+        if (!exists) {
+          merged.push(localItem);
+        }
+      });
+
+      setStories(merged);
+      if (merged.length > 0) {
+        try {
+          localStorage.setItem("cached_stories", JSON.stringify(merged));
+        } catch (e) {
+          console.warn("Storage quota exceeded, unable to cache stories:", e);
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to load stories, using local cache fallback:", error);
+      let cachedList: any[] = [];
+      try {
+        const cached = localStorage.getItem("cached_stories");
+        if (cached) {
+          cachedList = JSON.parse(cached);
+        }
+      } catch (e) {}
+
+      const fallbackMerged = Array.isArray(cachedList) ? [...cachedList] : [];
+      localList.forEach((localItem: any) => {
+        const exists = fallbackMerged.some(
+          (apiItem: any) => apiItem._id === localItem._id || apiItem.id === localItem._id
+        );
+        if (!exists) {
+          fallbackMerged.push(localItem);
+        }
+      });
+      setStories(fallbackMerged);
+    }
+  };
 
   const handleDeleteStory = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this story?")) return;
+
+    try {
+      const localStored = localStorage.getItem("my_uploaded_stories");
+      if (localStored) {
+        let list = JSON.parse(localStored);
+        if (Array.isArray(list)) {
+          list = list.filter((item: any) => item._id !== id && item.id !== id);
+          localStorage.setItem("my_uploaded_stories", JSON.stringify(list));
+        }
+      }
+    } catch (e) {
+      console.error("Failed to delete local story cache:", e);
+    }
+
     try {
       const res = await fetch(`/api/stories/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
         alert("Story deleted successfully!");
-        loadStories();
       } else {
-        alert("Failed to delete story");
+        alert("Story removed from local view.");
       }
+      loadStories();
     } catch (error) {
-      console.error(error);
-      alert("Error deleting story");
+      console.warn("Server deletion failed, removed from local view:", error);
+      loadStories();
     }
   };
 
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem("cached_stories");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setStories(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse cached stories in list:", e);
+    }
+
     loadStories();
 
     const refreshStories = () => {
@@ -62,7 +135,7 @@ export default function StoryList({
 
 
   return (
-    <div>
+    <div className="mt-12">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold">
           Uploaded Story Section

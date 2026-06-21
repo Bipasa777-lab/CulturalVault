@@ -2,6 +2,7 @@ const path = require("path");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: false,
   images: {
     // use remotePatterns (domains deprecated)
     remotePatterns: [
@@ -12,6 +13,9 @@ const nextConfig = {
         pathname: "/**",
       },
     ],
+  },
+  turbopack: {
+    root: __dirname,
   },
   webpack: (config) => {
     config.resolve.modules = [

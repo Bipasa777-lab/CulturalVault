@@ -123,18 +123,37 @@ export default function ProfilePage() {
       const data = await res.json();
       const dataArray = Array.isArray(data) ? data : [];
 
+      // Merge local user-submitted contributions
+      let mergedList = [...dataArray];
+      try {
+        const localStored = localStorage.getItem("my_submitted_contributions");
+        if (localStored) {
+          const localList = JSON.parse(localStored);
+          if (Array.isArray(localList)) {
+            localList.forEach((localItem: any) => {
+              const exists = mergedList.some((apiItem: any) => apiItem._id === localItem._id || apiItem.id === localItem._id);
+              if (!exists) {
+                mergedList.push(localItem);
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to merge local contributions in profile:", e);
+      }
+
       console.log("Profile Name:", userName);
 
-console.log(
-  "Contributors:",
-  dataArray.map((x:any) => x.contributor)
-);
+      console.log(
+        "Contributors:",
+        mergedList.map((x:any) => x.contributor)
+      );
 
-const userContributions = dataArray.filter(
-  (item: any) =>
-    item.contributor?.trim().toLowerCase() ===
-    userName?.trim().toLowerCase()
-);
+      const userContributions = mergedList.filter(
+        (item: any) =>
+          item.contributor?.trim().toLowerCase() ===
+          userName?.trim().toLowerCase()
+      );
 
 console.log(
   "User Contributions:",

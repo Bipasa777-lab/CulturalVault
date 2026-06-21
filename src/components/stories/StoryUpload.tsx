@@ -17,6 +17,7 @@ export default function StoryUpload({
     region: "",
     language: "",
     narrator: "",
+    contributor: "",
     category: "",
     score: "",
     lat: "",
@@ -28,12 +29,17 @@ export default function StoryUpload({
   });
 
   useEffect(() => {
+    const currentUser = JSON.parse(
+      localStorage.getItem("userAccount") || "{}"
+    );
+
     if (editingStory) {
       setStory({
         title: editingStory.title || "",
         region: editingStory.region || "",
         language: editingStory.language || "",
         narrator: editingStory.narrator || "",
+        contributor: editingStory.userName || "",
         category: editingStory.category || "",
         score: String(editingStory.score || ""),
         lat: String(editingStory.lat || ""),
@@ -50,6 +56,7 @@ export default function StoryUpload({
         region: "",
         language: "",
         narrator: "",
+        contributor: currentUser.name || "",
         category: "",
         score: "",
         lat: "",
@@ -78,6 +85,26 @@ export default function StoryUpload({
       localStorage.getItem("userAccount") || "{}"
     );
 
+    const payload = {
+      userId: currentUser.id || "anonymous",
+      userName: story.contributor || currentUser.name || "Anonymous Contributor",
+      title: story.title,
+      region: story.region,
+      language: story.language,
+      narrator: story.narrator,
+      category: story.category,
+      score: Number(story.score || 0),
+      lat: Number(story.lat || 0),
+      lng: Number(story.lng || 0),
+      description: story.description,
+      audio: story.audio,
+      image: story.image,
+      gallery: story.gallery,
+    };
+
+    let savedData: any = null;
+    let savedLocallyOnly = false;
+
     if (editingId) {
       try {
         const response = await fetch(`/api/stories/${editingId}`, {
@@ -85,81 +112,91 @@ export default function StoryUpload({
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            title: story.title,
-            region: story.region,
-            language: story.language,
-            narrator: story.narrator,
-            category: story.category,
-            score: Number(story.score),
-            lat: Number(story.lat),
-            lng: Number(story.lng),
-            description: story.description,
-            audio: story.audio,
-            image: story.image,
-            gallery: story.gallery,
-          }),
+          body: JSON.stringify(payload),
         });
 
-        if (!response.ok) {
-          alert("Failed to update story");
-          return;
+        if (response.ok) {
+          savedData = await response.json();
+        } else {
+          savedLocallyOnly = true;
         }
-
-        window.dispatchEvent(
-          new Event("storiesUpdated")
-        );
-
-        alert("Story Updated Successfully!");
-        setEditingStory(null);
       } catch (error) {
-        console.error(error);
-        alert("Failed to update story");
+        console.warn("Backend update failed, updating locally:", error);
+        savedLocallyOnly = true;
       }
-      return;
+
+      if (savedLocallyOnly) {
+        savedData = {
+          ...payload,
+          _id: editingId,
+          createdAt: new Date().toISOString(),
+          views: 0,
+          likes: 0,
+        };
+        alert("Story updated locally (offline mode).");
+      } else {
+        alert("Story Updated Successfully!");
+      }
+    } else {
+      try {
+        const response = await fetch("/api/stories", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          savedData = await response.json();
+        } else {
+          savedLocallyOnly = true;
+        }
+      } catch (error) {
+        console.warn("Backend submission failed, saving locally:", error);
+        savedLocallyOnly = true;
+      }
+
+      if (savedLocallyOnly) {
+        savedData = {
+          ...payload,
+          _id: `local_story_${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          views: 0,
+          likes: 0,
+        };
+        alert("Database connection offline. Story saved locally in your browser!");
+      } else {
+        alert("Story Saved Successfully!");
+      }
     }
 
-    const response = await fetch("/api/stories", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userId: currentUser.id,
-        userName: currentUser.name,
-        title: story.title,
-        region: story.region,
-        language: story.language,
-        narrator: story.narrator,
-        category: story.category,
-        score: Number(story.score),
-        lat: Number(story.lat),
-        lng: Number(story.lng),
-        description: story.description,
-        audio: story.audio,
-        image: story.image,
-        gallery: story.gallery,
-        views: 0,
-        likes: 0,
-      }),
-    });
+    try {
+      const localStored = localStorage.getItem("my_uploaded_stories");
+      let list = localStored ? JSON.parse(localStored) : [];
+      if (!Array.isArray(list)) list = [];
 
-    if (!response.ok) {
-      alert("Failed to save story");
-      return;
+      const targetId = editingId || savedData._id;
+      if (editingId) {
+        list = list.map((item: any) => (item._id === targetId || item.id === targetId) ? savedData : item);
+      } else {
+        list = [savedData, ...list];
+      }
+      localStorage.setItem("my_uploaded_stories", JSON.stringify(list));
+    } catch (e) {
+      console.warn("Failed to save local story cache:", e);
     }
 
     window.dispatchEvent(
       new Event("storiesUpdated")
     );
 
-    alert("Story Saved Successfully!");
-
     setStory({
       title: "",
       region: "",
       language: "",
       narrator: "",
+      contributor: currentUser.name || "",
       category: "",
       score: "",
       lat: "",
@@ -169,6 +206,7 @@ export default function StoryUpload({
       image: "",
       gallery: [],
     });
+    setEditingStory(null);
   };
 
   return (
@@ -187,6 +225,18 @@ export default function StoryUpload({
             setStory({
               ...story,
               title: e.target.value,
+            })
+          }
+          className="border rounded-xl p-3"
+        />
+
+        <input
+          placeholder="Contributor Name"
+          value={story.contributor}
+          onChange={(e) =>
+            setStory({
+              ...story,
+              contributor: e.target.value,
             })
           }
           className="border rounded-xl p-3"

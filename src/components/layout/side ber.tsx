@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   Compass,
   Shield,
@@ -20,14 +21,37 @@ import {
 import { useSidebar } from "@/context/SidebarContext";
 import { cn } from "@/utils";
 
+const LANGUAGES = [
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "bn", label: "বাংলা", flag: "🇧🇩" },
+  { code: "hi", label: "हिन्दी", flag: "🇮🇳" },
+  { code: "es", label: "Español", flag: "🇪🇸" },
+  { code: "fr", label: "Français", flag: "🇫🇷" },
+  { code: "ar", label: "العربية", flag: "🇸🇦" },
+];
+
 export function Sidebar() {
   const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useSidebar();
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
+  const { language, setLanguage } = useLanguage();
+
+  const [sidebarLangOpen, setSidebarLangOpen] = useState(false);
+  const sidebarLangRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsAdmin(!!localStorage.getItem("adminLoggedIn"));
   }, [pathname]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (sidebarLangRef.current && !sidebarLangRef.current.contains(event.target as Node)) {
+        setSidebarLangOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // HIDE SIDEBAR ON THE FRONT PAGE & AUTH PAGES
   if (
@@ -142,7 +166,63 @@ export function Sidebar() {
         )}>
           {isCollapsed ? (
             // Collapsed Desktop View
-            coreLinks.map(renderCollapsedLink)
+            <div className="flex flex-col gap-2 h-full justify-between pb-4">
+              <div className="flex flex-col gap-2">
+                {coreLinks.map(renderCollapsedLink)}
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="my-1 border-t border-border/50" />
+                {/* Compact Language Selector */}
+                <div className="relative" ref={sidebarLangRef}>
+                  <button
+                    onClick={() => setSidebarLangOpen(!sidebarLangOpen)}
+                    className="w-full py-3.5 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200 hover:bg-secondary/70 text-muted-foreground hover:text-foreground"
+                    title="Select Language"
+                  >
+                    <Globe size={20} className="text-muted-foreground" />
+                    <span className="text-[10px] tracking-wide mt-1 font-bold uppercase">{language}</span>
+                  </button>
+
+                  <AnimatePresence>
+                    {sidebarLangOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, x: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-16 bottom-0 w-48 rounded-xl border border-border bg-popover text-popover-foreground shadow-lg p-1.5 z-50 overflow-hidden"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          {LANGUAGES.map((lang) => (
+                            <button
+                              key={lang.code}
+                              onClick={() => {
+                                setLanguage(lang.code as any);
+                                setSidebarLangOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+                                language === lang.code
+                                  ? "bg-primary text-primary-foreground font-medium"
+                                  : "hover:bg-secondary text-foreground"
+                              )}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span>{lang.flag}</span>
+                                <span>{lang.label}</span>
+                              </span>
+                              {language === lang.code && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
           ) : (
             // Expanded/Mobile View
             <>
@@ -168,6 +248,30 @@ export function Sidebar() {
               
 
               {extraLinks.map(renderExpandedLink)}
+
+              <div className="my-3 border-t border-border/50" />
+              <div className="px-3 py-1 flex flex-col gap-2">
+                <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5">
+                  <Globe size={12} /> Languages / भाषाओं
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 mt-1">
+                  {LANGUAGES.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => setLanguage(lang.code as any)}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all border border-transparent shadow-sm",
+                        language === lang.code
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "bg-secondary/40 hover:bg-secondary text-muted-foreground hover:text-foreground hover:scale-[1.02]"
+                      )}
+                    >
+                      <span>{lang.flag}</span>
+                      <span>{lang.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="flex-1 min-h-[40px]" />
               

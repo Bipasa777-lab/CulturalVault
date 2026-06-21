@@ -8,20 +8,27 @@ import { useItems } from "@/hooks";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { motion } from "framer-motion";
 import { useBookmarks } from "@/context/BookmarksContext";
+import { useLanguage } from "@/context/LanguageContext";
+import { translations } from "@/lib/translations";
+import { translateItem } from "@/utils/translate";
+import { CulturalItem } from "@/types";
 
 export default function DashboardPage() {
+  const { language } = useLanguage();
+  const t = translations[language];
   const { items, loading, error } = useItems({}, 1);
   const { bookmarks } = useBookmarks();
-  const [greeting, setGreeting] = useState("Welcome back");
+  const [greetingKey, setGreetingKey] = useState<"welcomeBack" | "goodMorning" | "goodAfternoon" | "goodEvening">("welcomeBack");
   const [profile, setProfile] = useState<any>(null);
   const [recentViews, setRecentViews] = useState<any[]>([]);
   const [viewFilter, setViewFilter] = useState("all");
+  const [displayedItems, setDisplayedItems] = useState<CulturalItem[]>([]);
 
   useEffect(() => {
     const hour = new Date().getHours();
-    if (hour < 12) setGreeting("Good morning");
-    else if (hour < 18) setGreeting("Good afternoon");
-    else setGreeting("Good evening");
+    if (hour < 12) setGreetingKey("goodMorning");
+    else if (hour < 18) setGreetingKey("goodAfternoon");
+    else setGreetingKey("goodEvening");
 
     let stored = localStorage.getItem("user_profile");
     if (!stored && localStorage.getItem("user_token")) {
@@ -55,13 +62,13 @@ export default function DashboardPage() {
   }, []);
 
   const getJoinedText = () => {
-    if (!profile) return "Joined just now";
+    if (!profile) return t.joinedJustNow;
     const createdAt = profile.createdAt || (Date.now() - 24 * 60 * 60 * 1000);
     const diffTime = Math.abs(Date.now() - new Date(createdAt).getTime());
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    if (diffDays <= 0) return "Joined today";
-    if (diffDays === 1) return "Joined yesterday";
-    return `Active for ${diffDays} days`;
+    if (diffDays <= 0) return t.joinedToday;
+    if (diffDays === 1) return t.joinedYesterday;
+    return `${t.activeFor} ${diffDays} ${t.days}`;
   };
 
   const getRecommendedItems = () => {
@@ -85,6 +92,32 @@ export default function DashboardPage() {
   };
 
   const recommendedItems = getRecommendedItems();
+
+  // Localize recommended items
+  useEffect(() => {
+    let active = true;
+    async function localizeRecommended() {
+      const itemsToLocalize = getRecommendedItems();
+      if (!itemsToLocalize || itemsToLocalize.length === 0) {
+        setDisplayedItems([]);
+        return;
+      }
+      if (language === "en") {
+        setDisplayedItems(itemsToLocalize);
+        return;
+      }
+      const translated = await Promise.all(
+        itemsToLocalize.map((item) => translateItem(item, language))
+      );
+      if (active) {
+        setDisplayedItems(translated);
+      }
+    }
+    localizeRecommended();
+    return () => {
+      active = false;
+    };
+  }, [items, language, profile]);
 
   return (
     <PageWrapper className="min-h-[calc(100vh-4rem)] bg-background">
@@ -121,7 +154,7 @@ export default function DashboardPage() {
             </div>
             <div className="mb-2 drop-shadow-md">
               <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-foreground">
-                {greeting}, {profile?.name || "User"}!
+                {t[greetingKey] || "Welcome"}, {profile?.name || "User"}!
               </h1>
               <p className="text-muted-foreground mt-1">Cultural Explorer • {getJoinedText()}</p>
             </div>
@@ -133,10 +166,10 @@ export default function DashboardPage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Items Explored", value: "142", href: null },
-            { label: "Collections", value: String(bookmarks.length), href: "/bookmarks" },
-            { label: "Contributions", value: "0", href: null },
-            { label: "Curator Rank", value: "Novice", href: null },
+            { label: t.itemsExplored, value: "142", href: null },
+            { label: t.collections, value: String(bookmarks.length), href: "/bookmarks" },
+            { label: t.contributions, value: "0", href: null },
+            { label: t.curatorRank, value: "Novice", href: null },
           ].map((stat, i) => {
             const content = (
               <>
@@ -180,21 +213,21 @@ export default function DashboardPage() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              🕒 Recently Viewed History
+              🕒 {t.recentlyViewedHistory}
             </h2>
             
             <div className="flex items-center gap-2">
-              <label htmlFor="historyFilter" className="text-xs text-muted-foreground font-medium">Filter by:</label>
+              <label htmlFor="historyFilter" className="text-xs text-muted-foreground font-medium">{t.filterBy}</label>
               <select
                 id="historyFilter"
                 value={viewFilter}
                 onChange={(e) => setViewFilter(e.target.value)}
                 className="bg-card border border-white/10 hover:border-primary/50 text-foreground text-xs font-semibold rounded-xl px-3 py-2 outline-none transition cursor-pointer"
               >
-                <option value="all">All Views</option>
-                <option value="article">Blogs & Articles</option>
-                <option value="story">Stories</option>
-                <option value="community">Community Heritage</option>
+                <option value="all">{t.allViews}</option>
+                <option value="article">{t.blogsArticles}</option>
+                <option value="story">{t.preservedStories}</option>
+                <option value="community">{t.communityHeritage}</option>
                 <option value="risk">Risk Dashboard</option>
               </select>
             </div>
@@ -202,7 +235,7 @@ export default function DashboardPage() {
 
           {recentViews.filter(item => viewFilter === "all" || item.type === viewFilter).length === 0 ? (
             <div className="border border-dashed rounded-3xl p-10 bg-card/50 text-center text-muted-foreground text-xs italic">
-              No recently viewed {viewFilter === "all" ? "items" : viewFilter === "article" ? "blogs & articles" : viewFilter === "story" ? "stories" : viewFilter === "community" ? "community posts" : "risk dashboard events"} found under this filter.
+              {t.noRecentlyViewed}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -256,17 +289,17 @@ export default function DashboardPage() {
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Recommended for You, {profile?.name || "User"}</h2>
-            <p className="text-muted-foreground text-sm mt-0.5">Based on your interests: {profile?.interests && profile.interests.length > 0 ? profile.interests.join(", ") : "General"}</p>
+            <h2 className="text-2xl font-bold text-foreground">{t.recommendedForYou}, {profile?.name || "User"}</h2>
+            <p className="text-muted-foreground text-sm mt-0.5">{t.basedOnYourInterests} {profile?.interests && profile.interests.length > 0 ? profile.interests.join(", ") : "General"}</p>
           </div>
           <Link href="/explore" className="px-5 py-2 border border-border hover:bg-muted text-sm font-medium rounded-xl transition-colors shrink-0 self-start sm:self-auto">
-            Explore All
+            {t.exploreAll}
           </Link>
         </div>
 
         {profile?.interests && profile.interests.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
-            <span className="text-xs font-semibold text-muted-foreground mr-1 self-center">Your Active Interests:</span>
+            <span className="text-xs font-semibold text-muted-foreground mr-1 self-center">{t.activeInterests}</span>
             {profile.interests.map((interest: string) => (
               <span key={interest} className="text-xs bg-primary/10 text-primary border border-primary/20 px-2.5 py-0.5 rounded-full font-medium">
                 {interest}
@@ -275,7 +308,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <ItemGrid items={recommendedItems} loading={loading} error={error} />
+        <ItemGrid items={displayedItems} loading={loading} error={error} />
       </motion.section>
     </PageWrapper>
   );

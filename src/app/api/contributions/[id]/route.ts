@@ -2,14 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Contribution from "@/models/Contribution";
 
-const MONGODB_URI = process.env.MONGODB_URI || "";
-
-async function connectDB() {
-  if (mongoose.connections[0].readyState) {
-    return;
-  }
-  await mongoose.connect(MONGODB_URI);
-}
+import { connectDB } from "@/lib/mongodb";
 
 export async function PUT(
   request: Request,

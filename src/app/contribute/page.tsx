@@ -70,20 +70,52 @@ export default function ContributePage() {
     : {};
 
   const fetchMyContributions = useCallback(async () => {
-    if (!currentUser.id) return;
+    // Load local submissions first
+    let localList: any[] = [];
+    try {
+      const localStored = localStorage.getItem("my_submitted_contributions");
+      if (localStored) {
+        localList = JSON.parse(localStored);
+        if (!Array.isArray(localList)) localList = [];
+      }
+    } catch (e) {
+      console.warn("Failed to load local submissions:", e);
+    }
+
+    if (!currentUser.id) {
+      setMyContributions(localList);
+      return;
+    }
+
     try {
       const res = await fetch("/api/contributions");
       if (res.ok) {
         const data = await res.json();
-        const userContributions = (Array.isArray(data) ? data : []).filter(
-          (c: any) => c.userId === currentUser.id
+        const apiUserContributions = (Array.isArray(data) ? data : []).filter(
+          (c: any) => c.userId === currentUser.id || c.contributor?.trim().toLowerCase() === currentUser.name?.trim().toLowerCase()
         );
-        setMyContributions(userContributions);
+
+        // Merge API and local contributions (prefer server version if duplicate)
+        const merged = [...apiUserContributions];
+        localList.forEach((localItem: any) => {
+          const exists = merged.some(
+            (apiItem: any) => apiItem._id === localItem._id || apiItem.id === localItem._id
+          );
+          if (!exists) {
+            merged.push(localItem);
+          }
+        });
+
+        merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setMyContributions(merged);
+      } else {
+        setMyContributions(localList);
       }
     } catch (error) {
-      console.error("Failed to load contributions:", error);
+      console.warn("Failed to load contributions, using local fallback:", error);
+      setMyContributions(localList);
     }
-  }, [currentUser.id]);
+  }, [currentUser.id, currentUser.name]);
 
   useEffect(() => {
     fetchMyContributions();
@@ -124,6 +156,9 @@ export default function ContributePage() {
       method = "PUT";
     }
 
+    let savedData: any = null;
+    let savedLocallyOnly = false;
+
     try {
       const res = await fetch(url, {
         method,
@@ -133,39 +168,74 @@ export default function ContributePage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        alert(editingId ? "Failed to update contribution" : "Failed to submit contribution");
-        return;
+      if (res.ok) {
+        savedData = await res.json();
+      } else {
+        savedLocallyOnly = true;
       }
+    } catch (err) {
+      console.warn("Backend submission failed, saving locally:", err);
+      savedLocallyOnly = true;
+    }
 
+    if (savedLocallyOnly) {
+      savedData = {
+        ...payload,
+        _id: editingId || `local_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        views: 0,
+        likes: 0,
+        commentsCount: 0,
+        verified: false,
+        heritageScore: 75,
+      };
+      alert(
+        editingId
+          ? "Contribution updated locally (offline mode)."
+          : "Database connection offline. Contribution saved locally in your browser!"
+      );
+    } else {
       alert(
         editingId
           ? "Contribution Updated Successfully!"
           : "Contribution Submitted Successfully!"
       );
-
-      setForm({
-        title: "",
-        category: "",
-        region: "",
-        contributor: "",
-        description: "",
-        tags: "",
-        lat: "",
-        lng: "",
-        image: "",
-        culturalEra: "",
-        sourceType: "",
-        preservationStatus: "",
-        importanceLevel: "",
-        audio: "",
-      });
-      setEditingId(null);
-      fetchMyContributions();
-    } catch (error) {
-      console.error(error);
-      alert("Something went wrong");
     }
+
+    try {
+      const localStored = localStorage.getItem("my_submitted_contributions");
+      let list = localStored ? JSON.parse(localStored) : [];
+      if (!Array.isArray(list)) list = [];
+
+      const targetId = editingId || savedData._id;
+      if (editingId) {
+        list = list.map((item: any) => (item._id === targetId || item.id === targetId) ? savedData : item);
+      } else {
+        list = [savedData, ...list];
+      }
+      localStorage.setItem("my_submitted_contributions", JSON.stringify(list));
+    } catch (e) {
+      console.warn("Failed to save local submission cache:", e);
+    }
+
+    setForm({
+      title: "",
+      category: "",
+      region: "",
+      contributor: "",
+      description: "",
+      tags: "",
+      lat: "",
+      lng: "",
+      image: "",
+      culturalEra: "",
+      sourceType: "",
+      preservationStatus: "",
+      importanceLevel: "",
+      audio: "",
+    });
+    setEditingId(null);
+    fetchMyContributions();
   }
 
   const handleEdit = (c: any) => {
@@ -191,19 +261,33 @@ export default function ContributePage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this contribution?")) return;
+    
+    try {
+      const localStored = localStorage.getItem("my_submitted_contributions");
+      if (localStored) {
+        let list = JSON.parse(localStored);
+        if (Array.isArray(list)) {
+          list = list.filter((item: any) => item._id !== id && item.id !== id);
+          localStorage.setItem("my_submitted_contributions", JSON.stringify(list));
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to delete local contribution cache:", e);
+    }
+
     try {
       const res = await fetch(`/api/contributions/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
         alert("Contribution Deleted Successfully!");
-        fetchMyContributions();
       } else {
-        alert("Failed to delete contribution");
+        alert("Contribution removed from view.");
       }
+      fetchMyContributions();
     } catch (err) {
-      console.error(err);
-      alert("Failed to delete contribution");
+      console.warn("Server deletion failed, removed from local view:", err);
+      fetchMyContributions();
     }
   };
 
@@ -398,62 +482,109 @@ export default function ContributePage() {
               {myContributions.map((c) => (
                 <div
                   key={c._id || c.id}
-                  className="border border-border/60 rounded-2xl overflow-hidden hover:shadow-md transition-all bg-background flex flex-col justify-between"
+                  className="group overflow-hidden rounded-3xl border bg-card hover:shadow-xl transition-all duration-300 h-full flex flex-col"
                 >
+                  {/* Image */}
                   {c.image ? (
-                    <img
-                      src={c.image}
-                      alt={c.title}
-                      className="h-44 w-full object-cover"
-                    />
+                    <div className="relative h-64 overflow-hidden">
+                      <img
+                        src={c.image}
+                        alt={c.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      />
+                      <div className="absolute top-4 left-4">
+                        <span className="bg-black/60 text-white px-3 py-1 rounded-full text-xs">
+                          {c.category}
+                        </span>
+                      </div>
+                    </div>
                   ) : (
-                    <div className="h-44 w-full bg-muted flex items-center justify-center text-muted-foreground text-sm">
-                      No image uploaded
+                    <div className="relative h-64 bg-muted flex items-center justify-center text-muted-foreground text-sm">
+                      No Image Uploaded
+                      <div className="absolute top-4 left-4">
+                        <span className="bg-black/60 text-white px-3 py-1 rounded-full text-xs">
+                          {c.category}
+                        </span>
+                      </div>
                     </div>
                   )}
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 bg-primary/10 text-primary border rounded-full">
-                        {c.category}
-                      </span>
-                      <h3 className="font-bold text-lg mt-3 line-clamp-1">{c.title}</h3>
-                      <p className="text-xs text-muted-foreground mt-1">📍 {c.region}</p>
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-3">
-                        {c.description}
-                      </p>
-                    </div>
-                    
-                    <div className="mt-4 pt-3 border-t border-border/50">
-                      <Link
-                        href={`/community-gallery/${c._id || c.id}`}
-                        className="text-primary hover:underline text-xs font-semibold flex items-center gap-1 mb-2"
-                      >
-                        Explore Heritage Page →
-                      </Link>
 
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  {/* Content */}
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold">
+                        {c.title}
+                      </h3>
+
+                      <div className="flex items-center gap-2 mt-3">
+                        <p className="text-sm text-muted-foreground">
+                          👤 {c.contributor || "Unknown Contributor"}
+                        </p>
+                        <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-[10px]">
+                          Contributor
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-muted-foreground mt-2">
+                        📍 {c.region}
+                      </p>
+
+                      <div className="mt-2">
+                        <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs">
+                          Heritage Score: {c.heritageScore || 75}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-between mt-4">
+                      <div className="flex flex-wrap items-center justify-between text-xs text-muted-foreground border-t border-border/50 pt-3">
                         <span>📅 {c.createdAt ? new Date(c.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : "Just now"}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           <span>👁️ {c.views || 0}</span>
                           <span>❤️ {c.likes || 0}</span>
                           <span>💬 {c.commentsCount || 0}</span>
                         </div>
                       </div>
+
+                      {c.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          {c.tags.map((tag: string, index: number) => (
+                            <span
+                              key={index}
+                              className="px-2 py-1 bg-orange-500/10 text-orange-500 rounded-full text-xs"
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="mt-4 text-muted-foreground line-clamp-4">
+                        {c.description}
+                      </p>
+
+                      <Link
+                        href={`/community-gallery/${c._id || c.id}`}
+                        className="block mt-5 w-full bg-orange-500 text-white py-3 rounded-xl text-center hover:bg-orange-600 font-semibold"
+                      >
+                        Explore Heritage →
+                      </Link>
+
+                      <div className="flex gap-2 mt-4 pt-4 border-t border-border/50">
+                        <button
+                          onClick={() => handleEdit(c)}
+                          className="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 font-semibold"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(c._id || c.id)}
+                          className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 font-semibold"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="p-4 border-t border-border/50 flex gap-2">
-                    <button
-                      onClick={() => handleEdit(c)}
-                      className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 active:scale-[0.98] text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(c._id || c.id)}
-                      className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 active:scale-[0.98] text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
-                    >
-                      Delete
-                    </button>
                   </div>
                 </div>
               ))}

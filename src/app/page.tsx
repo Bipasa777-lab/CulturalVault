@@ -4,6 +4,8 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { useLanguage } from "@/context/LanguageContext";
+import { translations } from "@/lib/translations";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -22,6 +24,8 @@ const itemVariants = {
 };
 
 export default function LandingPage() {
+  const { language } = useLanguage();
+  const t = translations[language];
   const [isAuth, setIsAuth] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
@@ -31,7 +35,7 @@ export default function LandingPage() {
   }, []);
 
   const signupHref = mounted && isAuth ? "/dashboard" : "/signup";
-  const signupText = mounted && isAuth ? "Go to Dashboard" : "Join the Registry";
+  const signupText = mounted && isAuth ? t.dashboard : t.joinRegistry;
   const exploreHref = mounted && isAuth ? "/explore" : "/signin";
 
   return (
@@ -47,7 +51,8 @@ export default function LandingPage() {
           src="https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=2000&q=80" 
           alt="Landing Background" 
           fill 
-          className="object-cover opacity-40 duration-[20s] hover:scale-105 transition-transform"
+          className="object-cover opacity-40 hover:scale-105 transition-transform"
+          style={{ transitionDuration: "20s" }}
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-b from-background/95 via-background/50 to-background z-10" />
@@ -60,11 +65,11 @@ export default function LandingPage() {
         className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 flex flex-col items-center text-center"
       >
         <motion.h1 variants={itemVariants} className="font-display text-5xl sm:text-7xl font-bold tracking-tight text-foreground mb-8">
-          Preserve the <span className="text-primary">World's Heritage</span>
+          {t.landingTitle1} <span className="text-primary">{t.landingTitle2}</span>
         </motion.h1>
         
         <motion.p variants={itemVariants} className="text-xl sm:text-2xl text-muted-foreground max-w-3xl mb-12 leading-relaxed">
-          Discover, collect, and curate the most stunning art forms, ancient traditions, and marvelous historical architectures across human history.
+          {t.landingSubtitle}
         </motion.p>
 
         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-6 w-full sm:w-auto">
@@ -78,7 +83,7 @@ export default function LandingPage() {
             href={exploreHref} 
             className="px-10 py-4 bg-secondary/40 border border-border/80 text-foreground font-semibold rounded-2xl hover:bg-secondary/60 transition-all hover:-translate-y-1 shadow-sm text-center"
           >
-            Explore Library
+            {t.exploreLibrary}
           </Link>
         </motion.div>
       </motion.div>

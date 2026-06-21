@@ -10,25 +10,55 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { motion } from "framer-motion";
 import { recordRecentlyViewed } from "@/utils";
+import { useLanguage } from "@/context/LanguageContext";
+import { translateItem } from "@/utils/translate";
+import { CulturalItem } from "@/types";
 
-export default function ItemDetailPage({ params }: { params: { id: string } }) {
-  const { item, loading, error, likeItem } = useItem(params.id);
+export default function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = React.use(params);
+  const { item, loading, error, likeItem } = useItem(resolvedParams.id);
   const { isBookmarked } = useBookmarks();
+  const { language } = useLanguage();
 
+  const [translatedItem, setTranslatedItem] = useState<CulturalItem | null>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState({ name: "", text: "" });
 
+  const displayedItem = translatedItem || item;
+
   useEffect(() => {
-    if (item) {
+    let active = true;
+    async function localize() {
+      if (!item) {
+        setTranslatedItem(null);
+        return;
+      }
+      if (language === "en") {
+        setTranslatedItem(item);
+        return;
+      }
+      const trans = await translateItem(item, language);
+      if (active) {
+        setTranslatedItem(trans);
+      }
+    }
+    localize();
+    return () => {
+      active = false;
+    };
+  }, [item, language]);
+
+  useEffect(() => {
+    if (displayedItem) {
       recordRecentlyViewed({
-        id: item.id,
+        id: displayedItem.id,
         type: "article",
-        title: item.title,
-        category: item.category,
-        path: `/item/${item.id}`
+        title: displayedItem.title,
+        category: displayedItem.category,
+        path: `/item/${displayedItem.id}`
       });
 
-      const storedComments = localStorage.getItem(`comments-${item.id}`);
+      const storedComments = localStorage.getItem(`comments-${displayedItem.id}`);
       if (storedComments) {
         setComments(JSON.parse(storedComments));
       } else {
@@ -44,15 +74,15 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
             createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
           }
         ];
-        localStorage.setItem(`comments-${item.id}`, JSON.stringify(mock));
+        localStorage.setItem(`comments-${displayedItem.id}`, JSON.stringify(mock));
         setComments(mock);
       }
     }
-  }, [item]);
+  }, [displayedItem]);
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!item) return;
+    if (!displayedItem) return;
     if (!newComment.name.trim() || !newComment.text.trim()) return;
 
     const comment = {
@@ -63,7 +93,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
 
     const updated = [comment, ...comments];
     setComments(updated);
-    localStorage.setItem(`comments-${item.id}`, JSON.stringify(updated));
+    localStorage.setItem(`comments-${displayedItem.id}`, JSON.stringify(updated));
 
     setNewComment({ name: "", text: "" });
   };
@@ -90,7 +120,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
     );
   }
 
-  if (!item) {
+  if (!displayedItem) {
     return notFound();
   }
 
@@ -99,8 +129,8 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
       {/* Hero Section */}
       <section className="relative h-[60vh] sm:h-[70vh] w-full overflow-hidden">
         <Image
-          src={item.imageUrl}
-          alt={item.title}
+          src={displayedItem.imageUrl}
+          alt={displayedItem.title}
           fill
           priority
           sizes="100vw"
@@ -114,16 +144,16 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
             transition={{ duration: 0.5 }}
             className="inline-flex items-center gap-2 mb-4"
           >
-            {isBookmarked(item.id) && (
+            {isBookmarked(displayedItem.id) && (
               <span className="px-3 py-1 bg-amber-500 text-white shadow-md rounded-full text-sm font-medium">
                 Featured
               </span>
             )}
             <span className="px-3 py-1 bg-primary/20 text-primary backdrop-blur-md rounded-full text-sm font-medium border border-primary/20">
-              {item.category === "Articles" ? "Blogs" : item.category}
+              {displayedItem.category === "Articles" ? "Blogs" : displayedItem.category}
             </span>
             <span className="px-3 py-1 bg-secondary/80 text-secondary-foreground backdrop-blur-md rounded-full text-sm font-medium">
-              {item.era}
+              {displayedItem.era}
             </span>
           </motion.div>
           
@@ -133,7 +163,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="text-5xl sm:text-7xl font-bold tracking-tight text-foreground mb-4"
           >
-            {item.title}
+            {displayedItem.title}
           </motion.h1>
           
           <motion.div 
@@ -144,21 +174,21 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
           >
             <span className="flex items-center gap-1.5">
               <span className="w-4 h-4 rounded-full bg-accent inline-block" />
-              {item.location}
+              {displayedItem.location}
             </span>
             <span className="flex items-center gap-1 text-amber-500">
-              ★ <span className="font-medium text-foreground">{item.rating}</span> ({item.reviewCount.toLocaleString()} reviews)
+              ★ <span className="font-medium text-foreground">{displayedItem.rating}</span> ({displayedItem.reviewCount.toLocaleString()} reviews)
             </span>
             <span className="flex items-center gap-1.5">
-              👁️ <span className="font-medium text-foreground">{item.views !== undefined ? item.views : Math.floor((item.reviewCount || 0) * 4.5)}</span>
+              👁️ <span className="font-medium text-foreground">{displayedItem.views !== undefined ? displayedItem.views : Math.floor((displayedItem.reviewCount || 0) * 4.5)}</span>
             </span>
             <span className="flex items-center gap-1.5">
-              ❤️ <span className="font-medium text-foreground">{item.likes !== undefined ? item.likes : Math.floor((item.reviewCount || 0) * 1.2)}</span>
+              ❤️ <span className="font-medium text-foreground">{displayedItem.likes !== undefined ? displayedItem.likes : Math.floor((displayedItem.reviewCount || 0) * 1.2)}</span>
             </span>
             <span className="flex items-center gap-1.5">
               💬 <span className="font-medium text-foreground">{comments.length}</span>
             </span>
-            {item.category === "Articles" && (
+            {displayedItem.category === "Articles" && (
               <button 
                 onClick={likeItem}
                 className="ml-2 px-3.5 py-1 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs font-semibold shadow-md transition-all active:scale-95 flex items-center gap-1"
@@ -180,7 +210,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
             transition={{ delay: 0.3 }}
             className="flex flex-wrap gap-2"
           >
-            {item.tags.map(tag => (
+            {displayedItem.tags.map(tag => (
               <span key={tag} className="px-3 py-1 bg-muted text-muted-foreground rounded-full text-sm">
                 #{tag}
               </span>
@@ -196,12 +226,12 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
           >
             <h2 className="text-3xl font-semibold tracking-tight text-foreground mb-6">About the Heritage</h2>
             <p className="text-lg leading-relaxed text-muted-foreground">
-              {item.longDescription || item.description}
+              {displayedItem.longDescription || displayedItem.description}
             </p>
           </motion.article>
 
           {/* Artifacts */}
-          {item.artifacts && item.artifacts.length > 0 && (
+          {displayedItem.artifacts && displayedItem.artifacts.length > 0 && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -210,7 +240,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
             >
               <h2 className="text-3xl font-semibold tracking-tight text-foreground">Featured Artifacts</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {item.artifacts.map((artifact) => (
+                {displayedItem.artifacts.map((artifact) => (
                   <div key={artifact.id} className="group relative rounded-2xl overflow-hidden glass hover:bg-white/5 transition-all duration-300">
                     <div className="aspect-square relative flex-shrink-0">
                       <Image
@@ -306,22 +336,22 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
             </h3>
             <div className="flex items-center gap-4 mb-6">
               <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-primary/20">
-                {item.curator?.avatar ? (
-                  <Image src={item.curator.avatar} alt={item.curator.name} fill className="object-cover" sizes="64px" />
+                {displayedItem.curator?.avatar ? (
+                  <Image src={displayedItem.curator.avatar} alt={displayedItem.curator.name} fill className="object-cover" sizes="64px" />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center text-xl font-bold">
-                    {item.curator?.name?.charAt(0) || "C"}
+                    {displayedItem.curator?.name?.charAt(0) || "C"}
                   </div>
                 )}
               </div>
               <div>
-                <p className="font-medium text-foreground">{item.curator?.name || "Anonymous Curator"}</p>
-                <p className="text-sm text-muted-foreground">{item.curator?.title || "Cultural Enthusiast"}</p>
+                <p className="font-medium text-foreground">{displayedItem.curator?.name || "Anonymous Curator"}</p>
+                <p className="text-sm text-muted-foreground">{displayedItem.curator?.title || "Cultural Enthusiast"}</p>
               </div>
             </div>
             
             <p className="text-sm text-muted-foreground italic leading-relaxed border-l-2 border-primary/30 pl-4 py-2">
-              "This artifact from the {item.era} beautifully captures the essence of {item.category === "Articles" ? "blog" : item.category.toLowerCase()} history in {item.location}."
+              "This artifact from the {displayedItem.era} beautifully captures the essence of {displayedItem.category === "Articles" ? "blog" : displayedItem.category.toLowerCase()} history in {displayedItem.location}."
             </p>
 
             <Link href="/explore" className="mt-8 w-full flex items-center justify-center gap-2 px-6 py-3 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-xl transition-all font-medium">

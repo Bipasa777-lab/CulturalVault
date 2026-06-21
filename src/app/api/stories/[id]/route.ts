@@ -18,6 +18,7 @@ export async function PUT(
         region: body.region,
         language: body.language,
         narrator: body.narrator,
+        userName: body.userName,
         category: body.category,
         score: body.score,
         lat: body.lat,

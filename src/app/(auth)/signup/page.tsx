@@ -69,7 +69,8 @@ export default function SignUpPage() {
           src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=1600&q=80"
           alt="Curator exploring heritage"
           fill
-          className="object-cover transition-transform duration-[10s] hover:scale-105"
+          className="object-cover transition-transform hover:scale-105"
+          style={{ transitionDuration: "10s" }}
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/40 to-transparent" />

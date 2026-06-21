@@ -32,13 +32,13 @@ export function ItemCard({ item, index = 0 }: ItemCardProps) {
     <div
       draggable
       onDragStart={handleDragStart}
-      className="cursor-grab active:cursor-grabbing"
+      className="cursor-grab active:cursor-grabbing h-full"
     >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: index * 0.05 }}
-        className="group relative bg-card rounded-2xl overflow-hidden border border-border card-hover"
+        className="group relative bg-card rounded-2xl overflow-hidden border border-border card-hover h-full flex flex-col"
       >
       {/* Image */}
       <Link href={item.category === "Stories" ? `/stories/${item.id}` : `/item/${item.id}`} className="block">
@@ -60,7 +60,7 @@ export function ItemCard({ item, index = 0 }: ItemCardProps) {
                {item.description}
              </p>
           </div>
-
+ 
           {bookmarked && (
             <div className="absolute top-3 left-3 px-2 py-0.5 bg-amber-500 text-white text-xs font-semibold rounded-full shadow z-20">
               Featured
@@ -68,7 +68,7 @@ export function ItemCard({ item, index = 0 }: ItemCardProps) {
           )}
         </div>
       </Link>
-
+ 
       {/* Bookmark button */}
       <button
         onClick={(e) => {
@@ -84,44 +84,48 @@ export function ItemCard({ item, index = 0 }: ItemCardProps) {
           <BookmarkPlus size={14} className="text-muted-foreground" />
         )}
       </button>
-
+ 
       {/* Content */}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(item.category)}`}>
-            <span>{item.category === "Articles" ? "📝" : getCategoryIcon(item.category)}</span>
-            {item.category === "Articles" ? "Blogs" : item.category}
-          </span>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
-            <Star size={11} className="text-amber-500 fill-amber-500" />
-            <span className="font-medium text-foreground">{item.rating}</span>
-            <span>({formatNumber(item.reviewCount)})</span>
+      <div className="p-4 flex-1 flex flex-col justify-between">
+        <div>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(item.category)}`}>
+              <span>{item.category === "Articles" ? "📝" : getCategoryIcon(item.category)}</span>
+              {item.category === "Articles" ? "Blogs" : item.category}
+            </span>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
+              <Star size={11} className="text-amber-500 fill-amber-500" />
+              <span className="font-medium text-foreground">{item.rating}</span>
+              <span>({formatNumber(item.reviewCount)})</span>
+            </div>
           </div>
+ 
+          <Link href={item.category === "Stories" ? `/stories/${item.id}` : `/item/${item.id}`}>
+            <h3 className="font-display font-semibold text-base mb-1.5 hover:text-primary transition-colors leading-snug">
+              {item.title}
+            </h3>
+          </Link>
+ 
+          <p className="text-muted-foreground text-xs leading-relaxed mb-3">
+            {truncate(item.description, 90)}
+          </p>
         </div>
-
-        <Link href={item.category === "Stories" ? `/stories/${item.id}` : `/item/${item.id}`}>
-          <h3 className="font-display font-semibold text-base mb-1.5 hover:text-primary transition-colors leading-snug">
-            {item.title}
-          </h3>
-        </Link>
-
-        <p className="text-muted-foreground text-xs leading-relaxed mb-3">
-          {truncate(item.description, 90)}
-        </p>
-
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin size={10} />
-            {item.location}
-          </span>
-          <span className="text-xs font-mono text-muted-foreground">{item.era.split(" ")[0]}</span>
-        </div>
-
-        <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>📅 {item.createdAt ? new Date(item.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : "Unknown"}</span>
-          <div className="flex items-center gap-2.5">
-            <span>👁️ {formatNumber(item.views !== undefined ? item.views : Math.floor((item.reviewCount || 0) * 4.5))}</span>
-            <span>❤️ {formatNumber(item.likes !== undefined ? item.likes : Math.floor((item.reviewCount || 0) * 1.2))}</span>
+ 
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin size={10} />
+              {item.location}
+            </span>
+            <span className="text-xs font-mono text-muted-foreground">{item.era.split(" ")[0]}</span>
+          </div>
+ 
+          <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>📅 {item.createdAt ? new Date(item.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : "Unknown"}</span>
+            <div className="flex items-center gap-2.5">
+              <span>👁️ {formatNumber(item.views !== undefined ? item.views : Math.floor((item.reviewCount || 0) * 4.5))}</span>
+              <span>❤️ {formatNumber(item.likes !== undefined ? item.likes : Math.floor((item.reviewCount || 0) * 1.2))}</span>
+            </div>
           </div>
         </div>
       </div>

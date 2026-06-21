@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Compass, Sparkles } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import { translations } from "@/lib/translations";
+import Link from "next/link";
 
 export function HeroSection() {
   const { language } = useLanguage();
@@ -48,13 +49,12 @@ export function HeroSection() {
               <Compass size={18} />
               {t.startExploring}
             </a>
-            <a
-    href="/community-gallery"
-    className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-all hover:scale-105 shadow-lg shadow-orange-500/25"
-  >
-    🏛 Community Gallery
-  </a>
-  
+            <Link
+              href="/community-gallery"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-all hover:scale-105 shadow-lg shadow-orange-500/25"
+            >
+              🏛 Community Gallery
+            </Link>
           </div>
         </motion.div>
 

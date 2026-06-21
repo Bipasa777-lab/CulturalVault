@@ -28,13 +28,26 @@ export default function StoryLocationMap({
   lng: number;
   title: string;
 }) {
-  const [mapKey] = useState(() => `map-${Math.random().toString(36).substring(2, 9)}`);
+  // Reset Leaflet ID on all container DOM nodes in the document to prevent double-initialization
+  if (typeof window !== "undefined") {
+    const containers = document.querySelectorAll(".leaflet-container");
+    containers.forEach((container: any) => {
+      container._leaflet_id = null;
+    });
+  }
+
+  const [mapKey, setMapKey] = useState(0);
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMapKey((prev) => prev + 1);
+  }, []);
+
+  useEffect(() => {
+    const node = mapRef.current;
     return () => {
-      if (mapRef.current) {
-        const container = mapRef.current.querySelector(".leaflet-container") as any;
+      if (node) {
+        const container = node.querySelector(".leaflet-container") as any;
         if (container) {
           container._leaflet_id = null;
         }
@@ -42,16 +55,17 @@ export default function StoryLocationMap({
     };
   }, []);
 
-  if (!lat || !lng) {
+  if (!lat || !lng || mapKey === 0) {
     return (
       <div className="border rounded-2xl p-6 text-center">
-        No location available
+        {!lat || !lng ? "No location available" : "Loading map..."}
       </div>
     );
   }
 
   return (
     <div 
+      key={mapKey}
       ref={mapRef}
       className="rounded-2xl overflow-hidden border"
     >

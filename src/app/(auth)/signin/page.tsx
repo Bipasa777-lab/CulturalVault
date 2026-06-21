@@ -68,7 +68,8 @@ export default function SignInPage() {
           src="https://images.unsplash.com/photo-1518834107812-67b0b7c58434?w=1600&q=80"
           alt="Cultural Heritage"
           fill
-          className="object-cover transition-transform duration-[10s] hover:scale-105"
+          className="object-cover transition-transform hover:scale-105"
+          style={{ transitionDuration: "10s" }}
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />

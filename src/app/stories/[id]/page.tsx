@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { recordRecentlyViewed } from "@/utils";
+import { useLanguage } from "@/context/LanguageContext";
+import { translateStory } from "@/utils/translate";
 
 const StoryLocationMap = dynamic(
   () =>
@@ -17,12 +19,35 @@ const StoryLocationMap = dynamic(
 
 export default function StoryDetailsPage() {
   const params = useParams();
+  const { language } = useLanguage();
 
-  const [story, setStory] = useState<any>(
-    null
-  );
-  const [loading, setLoading] =
-    useState(true);
+  const [story, setStory] = useState<any>(null);
+  const [translatedStory, setTranslatedStory] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const displayedStory = translatedStory || story;
+
+  useEffect(() => {
+    let active = true;
+    async function localize() {
+      if (!story) {
+        setTranslatedStory(null);
+        return;
+      }
+      if (language === "en") {
+        setTranslatedStory(story);
+        return;
+      }
+      const trans = await translateStory(story, language);
+      if (active) {
+        setTranslatedStory(trans);
+      }
+    }
+    localize();
+    return () => {
+      active = false;
+    };
+  }, [story, language]);
 
   useEffect(() => {
     async function fetchAndIncrementStory() {
@@ -41,8 +66,27 @@ export default function StoryDetailsPage() {
           // Fallback if patch route fails
           const res = await fetch("/api/stories");
           const stories = await res.json();
-          const storiesArray = Array.isArray(stories) ? stories : [];
-          const selectedStory = storiesArray.find((item: any) => item._id === params.id);
+          let storiesArray = Array.isArray(stories) ? [...stories] : [];
+
+          // Merge local stories
+          try {
+            const localStored = localStorage.getItem("my_uploaded_stories");
+            if (localStored) {
+              const localList = JSON.parse(localStored);
+              if (Array.isArray(localList)) {
+                localList.forEach((localItem: any) => {
+                  const exists = storiesArray.some((apiItem: any) => apiItem._id === localItem._id || apiItem.id === localItem._id);
+                  if (!exists) {
+                    storiesArray.push(localItem);
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to merge local stories in detail page fallback:", e);
+          }
+
+          const selectedStory = storiesArray.find((item: any) => (item._id || item.id) === params.id);
           setStory(selectedStory);
         }
       } catch (error) {
@@ -74,16 +118,16 @@ export default function StoryDetailsPage() {
   };
 
   useEffect(() => {
-    if (story) {
+    if (displayedStory) {
       recordRecentlyViewed({
-        id: story._id,
+        id: displayedStory._id,
         type: "story",
-        title: story.title,
-        category: story.category,
-        path: `/stories/${story._id}`
+        title: displayedStory.title,
+        category: displayedStory.category,
+        path: `/stories/${displayedStory._id}`
       });
     }
-  }, [story]);
+  }, [displayedStory]);
 
   if (loading) {
     return (
@@ -93,7 +137,7 @@ export default function StoryDetailsPage() {
     );
   }
 
-  if (!story) {
+  if (!displayedStory) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-10">
         Story Not Found
@@ -105,11 +149,11 @@ export default function StoryDetailsPage() {
     <div className="max-w-6xl mx-auto px-6 py-10">
       <div className="border rounded-3xl p-8 bg-card">
          {/* Story Cover Image */}
-      {story.image && (
+      {displayedStory.image && (
         <div className="mb-8">
           <img
-            src={story.image}
-            alt={story.title}
+            src={displayedStory.image}
+            alt={displayedStory.title}
             className="w-full h-[500px] object-cover rounded-3xl border"
           />
         </div>
@@ -118,7 +162,7 @@ export default function StoryDetailsPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-4xl font-bold">
-              🏛 {story.title}
+              🏛 {displayedStory.title}
             </h1>
 
             <p className="text-muted-foreground mt-2">
@@ -127,7 +171,7 @@ export default function StoryDetailsPage() {
           </div>
 
           <span className="px-4 py-2 rounded-full bg-amber-100 text-amber-700 font-semibold">
-            {story.category}
+            {displayedStory.category}
           </span>
         </div>
 
@@ -141,34 +185,40 @@ export default function StoryDetailsPage() {
             <div className="space-y-2.5">
               <p>
                 🌍 <strong>Region:</strong>{" "}
-                {story.region}
+                {displayedStory.region}
               </p>
 
               <p>
                 🗣{" "}
                 <strong>Language:</strong>{" "}
-                {story.language}
+                {displayedStory.language}
               </p>
 
               <p>
                 🎙{" "}
                 <strong>Narrator:</strong>{" "}
-                {story.narrator}
+                {displayedStory.narrator}
+              </p>
+
+              <p>
+                👤{" "}
+                <strong>Contributor:</strong>{" "}
+                {displayedStory.userName || "Unknown User"}
               </p>
 
               <p>
                 📅 <strong>Date Posted:</strong>{" "}
-                {story.createdAt ? new Date(story.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : "Just now"}
+                {displayedStory.createdAt ? new Date(displayedStory.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : "Just now"}
               </p>
 
               <p>
                 👁️ <strong>Views:</strong>{" "}
-                {story.views !== undefined ? story.views : 0}
+                {displayedStory.views !== undefined ? displayedStory.views : 0}
               </p>
 
               <p className="flex flex-wrap items-center gap-2">
                 ❤️ <strong>Likes:</strong>{" "}
-                <span className="font-semibold">{story.likes !== undefined ? story.likes : 0}</span>
+                <span className="font-semibold">{displayedStory.likes !== undefined ? displayedStory.likes : 0}</span>
                 <button
                   onClick={handleLike}
                   className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 active:scale-95 text-white rounded-full text-[11px] font-semibold shadow transition-all flex items-center gap-1"
@@ -187,15 +237,15 @@ export default function StoryDetailsPage() {
             <div className="space-y-2">
               <p>
                 ⭐ <strong>Score:</strong>{" "}
-                {story.score}
+                {displayedStory.score}
               </p>
 
             <div className="mt-4">
-  {story.score >= 90 ? (
+  {displayedStory.score >= 90 ? (
     <span className="bg-green-500 text-white px-4 py-2 rounded-full">
       🏆 Heritage Treasure
     </span>
-  ) : story.score >= 70 ? (
+  ) : displayedStory.score >= 70 ? (
     <span className="bg-yellow-500 text-white px-4 py-2 rounded-full">
       ⭐ Well Preserved
     </span>
@@ -208,13 +258,13 @@ export default function StoryDetailsPage() {
 
               <p>
                 📍 <strong>Latitude:</strong>{" "}
-                {story.lat}
+                {displayedStory.lat}
               </p>
 
               <p>
                 📍{" "}
                 <strong>Longitude:</strong>{" "}
-                {story.lng}
+                {displayedStory.lng}
               </p>
             </div>
 
@@ -223,7 +273,7 @@ export default function StoryDetailsPage() {
                 <div
                   className="bg-green-500 h-3 rounded-full"
                   style={{
-                    width: `${story.score}%`,
+                    width: `${displayedStory.score}%`,
                   }}
                 />
               </div>
@@ -238,12 +288,12 @@ export default function StoryDetailsPage() {
           </h2>
 
           <p className="whitespace-pre-wrap leading-8 text-lg text-muted-foreground">
-            {story.description}
+            {displayedStory.description}
           </p>
         </div>
 
         {/* Audio */}
-        {story.audio && (
+        {displayedStory.audio && (
           <div className="border rounded-2xl p-6 mb-8">
             <h2 className="text-2xl font-bold mb-4">
               Audio Narration
@@ -254,21 +304,21 @@ export default function StoryDetailsPage() {
               className="w-full"
             >
               <source
-                src={story.audio}
+                src={displayedStory.audio}
               />
             </audio>
           </div>
         )}
 
         {/* Story Gallery */}
-{story.gallery?.length > 0 && (
+{displayedStory.gallery?.length > 0 && (
   <div className="border rounded-2xl p-6 mb-8">
     <h2 className="text-2xl font-bold mb-4">
       📸 Story Gallery
     </h2>
 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {story.gallery.map(
+      {displayedStory.gallery.map(
         (image: string, index: number) => (
           <img
             key={index}
@@ -296,9 +346,9 @@ export default function StoryDetailsPage() {
           </p>
 
           <StoryLocationMap
-            lat={Number(story.lat)}
-            lng={Number(story.lng)}
-            title={story.title}
+            lat={Number(displayedStory.lat)}
+            lng={Number(displayedStory.lng)}
+            title={displayedStory.title}
           />
         </div>
       </div>

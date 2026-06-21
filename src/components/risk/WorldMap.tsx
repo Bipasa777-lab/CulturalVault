@@ -123,16 +123,29 @@ export default function WorldMap({
   onSearch,
 }: WorldMapProps) {
   const { sites, loading } = useRiskSites();
-  
-  // Unique mapKey to prevent Leaflet "Map container is already initialized" error during remounting
-  const [mapKey] = useState(() => `map-${Math.random().toString(36).substring(2, 9)}`);
+
+  // Reset Leaflet ID on all container DOM nodes in the document to prevent double-initialization
+  if (typeof window !== "undefined") {
+    const containers = document.querySelectorAll(".leaflet-container");
+    containers.forEach((container: any) => {
+      container._leaflet_id = null;
+    });
+  }
+
+  // Dynamic mapKey state to force remount on client-side double mount (Strict Mode)
+  const [mapKey, setMapKey] = useState(0);
+
+  useEffect(() => {
+    setMapKey((prev) => prev + 1);
+  }, []);
 
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const node = mapRef.current;
     return () => {
-      if (mapRef.current) {
-        const container = mapRef.current.querySelector(".leaflet-container") as any;
+      if (node) {
+        const container = node.querySelector(".leaflet-container") as any;
         if (container) {
           container._leaflet_id = null;
         }
@@ -397,7 +410,7 @@ export default function WorldMap({
       ? getCompassDirection(activeOrigin[0], activeOrigin[1], selectedSite.lat, selectedSite.lng)
       : null;
 
-  if (loading) {
+  if (loading || mapKey === 0) {
     return (
       <div className="h-[600px] flex items-center justify-center border rounded-2xl bg-card">
         <div className="flex flex-col items-center gap-2">
@@ -575,6 +588,7 @@ export default function WorldMap({
 
       {/* Map Container */}
       <div 
+        key={mapKey}
         ref={mapRef}
         className="flex-1 rounded-2xl overflow-hidden border border-border relative h-[600px] bg-card shadow-sm"
       >

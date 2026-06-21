@@ -1,44 +1,44 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Contribution from "@/models/Contribution";
+import { connectDB } from "@/lib/mongodb";
+import { MOCK_CONTRIBUTIONS } from "@/lib/mockData";
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || "";
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`Database query timed out after ${timeoutMs}ms. Returning fallback mock data.`);
+      resolve(fallbackValue);
+    }, timeoutMs);
+  });
 
-async function connectDB() {
-  if (mongoose.connections[0].readyState) {
-    return;
-  }
-
-  await mongoose.connect(MONGODB_URI);
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise
+  ]);
 }
 
 /* GET ALL CONTRIBUTIONS */
 
 export async function GET() {
   try {
-    await connectDB();
-
-    const contributions =
-      await Contribution.find().sort({
+    const fetchContributionsPromise = (async () => {
+      await connectDB();
+      return await Contribution.find().sort({
         createdAt: -1,
       });
+    })();
 
-    return NextResponse.json(
-      contributions
-    );
+    const contributions = await withTimeout(fetchContributionsPromise, 1500, MOCK_CONTRIBUTIONS);
+
+    return NextResponse.json(contributions);
   } catch (error) {
-    console.error("Mongo Error:", error);
-
-    return NextResponse.json(
-      {
-        error:
-          "Failed to fetch contributions",
-      },
-      {
-        status: 500,
-      }
-    );
+    console.error("Failed to fetch contributions from database, using fallback mock data:", error);
+    return NextResponse.json(MOCK_CONTRIBUTIONS);
   }
 }
 
